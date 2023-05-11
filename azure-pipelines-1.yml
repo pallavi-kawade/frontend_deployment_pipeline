@@ -1,0 +1,61 @@
+trigger:
+- master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+- stage: Build
+  displayName: 'Build HTML'
+  jobs:
+  - job: BuildHTML
+    displayName: 'Build HTML'
+    steps:
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '14.x'
+      displayName: 'Install Node.js'
+
+    - script: |
+        npm install gulp -g
+        npm install
+      displayName: 'Install Gulp and dependencies'
+
+    - script: |
+        gulp build
+      displayName: 'Optimize HTML'
+
+    - task: CopyFiles@2
+      inputs:
+        sourceFolder: '$(System.DefaultWorkingDirectory)/dist'
+        targetFolder: '$(Build.ArtifactStagingDirectory)'
+      displayName: 'Copy optimized HTML to artifacts directory'
+
+  - job: PublishArtifact
+    displayName: 'Publish Artifact'
+    dependsOn: BuildHTML
+    condition: succeeded()
+    steps:
+    - task: PublishBuildArtifacts@1
+      inputs:
+        artifactName: 'html-artifact'
+        pathToPublish: '$(Build.ArtifactStagingDirectory)'
+        publishLocation: 'Container'
+      displayName: 'Publish HTML artifact'
+
+- stage: Deploy
+  displayName: 'Deploy HTML'
+  jobs:
+  - job: DeployHTML
+    displayName: 'Deploy HTML'
+    steps:
+    - task: DownloadBuildArtifacts@0
+      inputs:
+        artifactName: 'html-artifact'
+      displayName: 'Download HTML artifact'
+
+    - task: CopyFiles@2
+      inputs:
+        sourceFolder: '$(Pipeline.Workspace)/html-artifact'
+        targetFolder: '/var/www/html'
+      displayName: 'Copy optimized HTML to web server'
